@@ -159,16 +159,47 @@ test('returns reading dates as timezone-safe YYYY-MM-DD across CRUD and daily re
 
 test('allows no more than the four supported time slots per day', async () => {
   const slots = ['morning_fasting', 'after_breakfast', 'after_lunch', 'after_dinner'];
+  const readingIds = [];
   for (const [index, timeSlot] of slots.entries()) {
     const response = await request(app).post('/api/readings')
       .set('Authorization', `Bearer ${secondUserToken}`)
       .send({ date: today, timeSlot, value: 100 + index });
     assert.equal(response.status, 201);
+    readingIds.push(response.body.reading.id);
   }
-  const invalidFifth = await request(app).post('/api/readings')
+
+  const fifthWithExistingSlot = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${secondUserToken}`)
+    .send({ date: today, timeSlot: 'morning_fasting', value: 110 });
+  assert.equal(fifthWithExistingSlot.status, 400);
+  assert.equal(fifthWithExistingSlot.body.message, 'You can add only 4 readings per day.');
+
+  const fifthWithInvalidSlot = await request(app).post('/api/readings')
     .set('Authorization', `Bearer ${secondUserToken}`)
     .send({ date: today, timeSlot: 'bedtime', value: 110 });
-  assert.equal(invalidFifth.status, 400);
+  assert.equal(fifthWithInvalidSlot.status, 400);
+  assert.equal(fifthWithInvalidSlot.body.message, 'You can add only 4 readings per day.');
+
+  const editAtLimit = await request(app).put(`/api/readings/${readingIds[0]}`)
+    .set('Authorization', `Bearer ${secondUserToken}`)
+    .send({ date: today, timeSlot: 'morning_fasting', value: 111 });
+  assert.equal(editAtLimit.status, 200);
+  assert.equal(editAtLimit.body.reading.value, 111);
+
+  const deleted = await request(app).delete(`/api/readings/${readingIds[0]}`)
+    .set('Authorization', `Bearer ${secondUserToken}`);
+  assert.equal(deleted.status, 204);
+
+  const replacement = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${secondUserToken}`)
+    .send({ date: today, timeSlot: 'morning_fasting', value: 112 });
+  assert.equal(replacement.status, 201);
+
+  const stillLimited = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${secondUserToken}`)
+    .send({ date: today, timeSlot: 'morning_fasting', value: 113 });
+  assert.equal(stillLimited.status, 400);
+  assert.equal(stillLimited.body.message, 'You can add only 4 readings per day.');
 });
 
 test('rejects future reading dates', async () => {

@@ -9,13 +9,15 @@ export const TIME_SLOTS = [
   { value: 'after_dinner', label: 'After dinner' },
 ];
 
-export default function ReadingForm({ reading, selectedDate, onSave, onCancel, busy }) {
+export default function ReadingForm({ reading, selectedDate, readings, onSave, onCancel, busy }) {
   const [form, setForm] = useState({
     date: selectedDate || localDateString(),
     timeSlot: 'morning_fasting',
     value: '',
   });
   const [error, setError] = useState('');
+  const dailyLimitReached = !reading
+    && readings.filter((item) => item.date === form.date).length >= TIME_SLOTS.length;
 
   useEffect(() => {
     setForm(reading
@@ -23,6 +25,10 @@ export default function ReadingForm({ reading, selectedDate, onSave, onCancel, b
       : { date: selectedDate || localDateString(), timeSlot: 'morning_fasting', value: '' });
     setError('');
   }, [reading, selectedDate]);
+
+  useEffect(() => {
+    if (!dailyLimitReached) setError('');
+  }, [dailyLimitReached]);
 
   async function submit(event) {
     event.preventDefault();
@@ -72,13 +78,18 @@ export default function ReadingForm({ reading, selectedDate, onSave, onCancel, b
           </span>
         </label>
         <div className="form-actions">
-          <button className="button button-primary" type="submit" disabled={busy}>
+          <button className="button button-primary" type="submit" disabled={busy || dailyLimitReached}>
             {busy ? <span className="spinner small" /> : reading ? <Check size={16} /> : <Plus size={16} />}
             {reading ? 'Save changes' : 'Add reading'}
           </button>
           {reading && <button className="button button-quiet" type="button" onClick={onCancel}><X size={16} /> Cancel</button>}
         </div>
       </div>
+      {dailyLimitReached && (
+        <p className="inline-info" role="status">
+          You&apos;ve recorded all 4 readings for this day.
+        </p>
+      )}
       {error && <p className="inline-error" role="alert">{error}</p>}
       <p className="form-hint">Use a whole number between 40 and 600. One reading per time slot each day.</p>
     </form>

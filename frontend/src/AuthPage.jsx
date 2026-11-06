@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Activity, ArrowRight, HeartPulse, ShieldCheck } from 'lucide-react';
+import { Activity, ArrowRight, Eye, EyeOff, HeartPulse, ShieldCheck } from 'lucide-react';
 
 export default function AuthPage({ onAuthenticate }) {
   const [mode, setMode] = useState('login');
   const [fields, setFields] = useState({ name: '', email: '', password: '' });
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
@@ -19,6 +20,7 @@ export default function AuthPage({ onAuthenticate }) {
   function changeMode(nextMode) {
     setMode(nextMode);
     setError('');
+    setShowPassword(false);
   }
 
   return (
@@ -65,7 +67,18 @@ export default function AuthPage({ onAuthenticate }) {
             </label>
             <label>
               Password
-              <input type="password" autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={fields.password} onChange={(event) => setFields({ ...fields, password: event.target.value })} placeholder="At least 8 characters" required />
+              <span className="password-input-wrap">
+                <input aria-label="Password" type={showPassword ? 'text' : 'password'} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} minLength={8} value={fields.password} onChange={(event) => setFields({ ...fields, password: event.target.value })} placeholder="At least 8 characters" required />
+                <button
+                  className="password-toggle"
+                  type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-pressed={showPassword}
+                  onClick={() => setShowPassword((visible) => !visible)}
+                >
+                  {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                </button>
+              </span>
             </label>
             {error && <div className="alert alert-error" role="alert">{error}</div>}
             <button className="button button-primary auth-submit" type="submit" disabled={busy}>

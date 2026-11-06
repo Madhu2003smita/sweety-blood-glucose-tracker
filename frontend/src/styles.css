@@ -54,6 +54,11 @@ a { color: inherit; text-decoration: none; }
 .auth-form { display: grid; gap: 17px; margin-top: 24px; }
 .auth-form label, .reading-form label { display: grid; gap: 8px; color: #536868; font-size: 11px; font-weight: 600; }
 .auth-form input, .reading-form input, .reading-form select { width: 100%; min-width: 0; height: 43px; padding: 0 12px; color: #3b5051; border: 1px solid #e1eae7; outline: none; border-radius: 9px; background: #fff; font-size: 12px; transition: border-color .2s, box-shadow .2s; }
+.password-input-wrap { position: relative; display: block; }
+.password-input-wrap input { padding-right: 44px; }
+.password-toggle { position: absolute; top: 50%; right: 7px; display: grid; width: 30px; height: 30px; place-items: center; padding: 0; color: #849795; border: 0; border-radius: 7px; background: transparent; transform: translateY(-50%); }
+.password-toggle:hover { color: #398273; background: #eff7f3; }
+.password-toggle:focus-visible { outline: 2px solid #73ad9c; outline-offset: 1px; }
 .auth-form input:focus, .reading-form input:focus, .reading-form select:focus, .date-picker input:focus { border-color: #73ad9c; box-shadow: 0 0 0 3px rgba(76,151,127,.1); }
 .auth-form input::placeholder, .reading-form input::placeholder { color: #b2bfbd; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 9px; font-size: 12px; font-weight: 700; transition: background .2s, transform .2s; }
@@ -154,6 +159,7 @@ a { color: inherit; text-decoration: none; }
 .button-quiet:hover { background: #f4f8f6; }
 .form-hint { margin: 9px 0 0; color: #a2aeaa; font-size: 9px; }
 .inline-error { margin: 10px 0 0; color: #a74d4c; font-size: 10px; }
+.inline-info { margin: 10px 0 0; color: #578578; font-size: 10px; }
 .gentle-note { display: flex; gap: 8px; align-items: flex-start; margin-top: 17px; padding: 11px; color: #769187; border-radius: 9px; background: #f1f8f4; font-size: 9px; line-height: 1.55; }
 .gentle-note svg { flex: 0 0 auto; color: #65a18c; }
 .history-count { padding: 6px 9px; color: #729087; border-radius: 20px; background: #f0f7f3; font-size: 9px; font-weight: 600; }

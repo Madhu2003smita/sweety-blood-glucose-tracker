@@ -145,6 +145,7 @@ export default function Dashboard({ user, token, onLogout }) {
             <ReadingForm
               reading={editing}
               selectedDate={selectedDate}
+              readings={readings}
               onSave={saveReading}
               onCancel={() => setEditing(null)}
               busy={saving}

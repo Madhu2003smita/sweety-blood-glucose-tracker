@@ -1,6 +1,8 @@
 const { validateReading } = require('../utils/validation');
 const { serializeReading } = require('../utils/dateSerialization');
 
+const DAILY_LIMIT_MESSAGE = 'You can add only 4 readings per day.';
+
 function createReadingsController(pool) {
   function handleConstraint(error, res) {
     if (error.code === '23505') {
@@ -35,20 +37,49 @@ function createReadingsController(pool) {
 
     async create(req, res, next) {
       const { errors, value } = validateReading(req.body);
-      if (Object.keys(errors).length) return res.status(400).json({ message: 'Please correct the highlighted fields.', errors });
+      if (errors.date) {
+        return res.status(400).json({ message: 'Please correct the highlighted fields.', errors: { date: errors.date } });
+      }
 
+      let client;
       try {
-        const result = await pool.query(
+        client = await pool.connect();
+        await client.query('BEGIN');
+        await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+        const count = await client.query(
+          'SELECT COUNT(*)::INTEGER AS total FROM readings WHERE user_id = $1 AND reading_date = $2',
+          [req.user.id, req.body.date],
+        );
+        if (count.rows[0].total >= 4) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: DAILY_LIMIT_MESSAGE });
+        }
+        if (Object.keys(errors).length) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: 'Please correct the highlighted fields.', errors });
+        }
+
+        const result = await client.query(
           `INSERT INTO readings (user_id, reading_date, time_slot, value)
            VALUES ($1, $2, $3, $4)
            RETURNING id, reading_date AS date, time_slot AS "timeSlot", value`,
           [req.user.id, req.body.date, req.body.timeSlot, value],
         );
+        await client.query('COMMIT');
         return res.status(201).json({ reading: serializeReading(result.rows[0]) });
       } catch (error) {
+        if (client) {
+          try {
+            await client.query('ROLLBACK');
+          } catch (rollbackError) {
+            error.rollbackError = rollbackError;
+          }
+        }
         const response = handleConstraint(error, res);
         if (response) return response;
         return next(error);
+      } finally {
+        if (client) client.release();
       }
     },
 
@@ -57,22 +88,60 @@ function createReadingsController(pool) {
         return res.status(400).json({ message: 'Reading ID must be a positive integer.' });
       }
       const { errors, value } = validateReading(req.body);
-      if (Object.keys(errors).length) return res.status(400).json({ message: 'Please correct the highlighted fields.', errors });
+      if (errors.date) {
+        return res.status(400).json({ message: 'Please correct the highlighted fields.', errors: { date: errors.date } });
+      }
 
+      let client;
       try {
-        const result = await pool.query(
+        client = await pool.connect();
+        await client.query('BEGIN');
+        await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]);
+        const ownedReading = await client.query(
+          'SELECT id FROM readings WHERE id = $1 AND user_id = $2 FOR UPDATE',
+          [req.params.id, req.user.id],
+        );
+        if (!ownedReading.rowCount) {
+          await client.query('ROLLBACK');
+          return res.status(404).json({ message: 'Reading not found.' });
+        }
+
+        const count = await client.query(
+          `SELECT COUNT(*)::INTEGER AS total FROM readings
+           WHERE user_id = $1 AND reading_date = $2 AND id <> $3`,
+          [req.user.id, req.body.date, req.params.id],
+        );
+        if (count.rows[0].total >= 4) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: DAILY_LIMIT_MESSAGE });
+        }
+        if (Object.keys(errors).length) {
+          await client.query('ROLLBACK');
+          return res.status(400).json({ message: 'Please correct the highlighted fields.', errors });
+        }
+
+        const result = await client.query(
           `UPDATE readings
            SET reading_date = $1, time_slot = $2, value = $3
            WHERE id = $4 AND user_id = $5
            RETURNING id, reading_date AS date, time_slot AS "timeSlot", value`,
           [req.body.date, req.body.timeSlot, value, req.params.id, req.user.id],
         );
-        if (!result.rowCount) return res.status(404).json({ message: 'Reading not found.' });
+        await client.query('COMMIT');
         return res.json({ reading: serializeReading(result.rows[0]) });
       } catch (error) {
+        if (client) {
+          try {
+            await client.query('ROLLBACK');
+          } catch (rollbackError) {
+            error.rollbackError = rollbackError;
+          }
+        }
         const response = handleConstraint(error, res);
         if (response) return response;
         return next(error);
+      } finally {
+        if (client) client.release();
       }
     },
 
