@@ -35,7 +35,7 @@ The API creates the `users` and `readings` tables and indexes on startup. It req
    npm run dev
    ```
 
-   The API runs at `http://localhost:4000`; its health check is `http://localhost:4000/api/health`.
+   The API runs at `http://localhost:5000`; its health check is `http://localhost:5000/api/health`.
 
 3. In a second terminal, configure and start the frontend:
 

@@ -8,8 +8,17 @@ const errorHandler = require('./middleware/errorHandler');
 
 function createApp(pool) {
   const app = express();
+  const allowedOrigins = new Set([
+    'http://localhost:5173',
+    'http://127.0.0.1:5173',
+    ...(process.env.CLIENT_ORIGIN || '').split(',').map((origin) => origin.trim()).filter(Boolean),
+  ]);
   app.use(helmet());
-  app.use(cors({ origin: process.env.CLIENT_ORIGIN || 'http://localhost:5173' }));
+  app.use(cors({
+    origin(origin, callback) {
+      callback(null, !origin || allowedOrigins.has(origin));
+    },
+  }));
   app.use(express.json({ limit: '20kb' }));
 
   app.get('/api/health', (req, res) => res.json({ status: 'ok' }));

@@ -56,6 +56,55 @@ test('registers users with hashed passwords and logs in', async () => {
   assert.equal(Object.hasOwn(response.body.user, 'password_hash'), false);
 });
 
+test('rejects duplicate registrations and invalid authentication input', async () => {
+  const duplicate = await request(app).post('/api/auth/register').send({
+    name: 'Avery Sample',
+    email: 'AVERY@example.com',
+    password: 'secure-password',
+  });
+  assert.equal(duplicate.status, 409);
+  assert.match(duplicate.body.message, /already exists/i);
+
+  const missingRegistrationFields = await request(app).post('/api/auth/register').send({
+    name: 'Missing Email',
+    password: 'secure-password',
+  });
+  assert.equal(missingRegistrationFields.status, 400);
+
+  const missingLoginFields = await request(app).post('/api/auth/login').send({ email: 'not-an-email' });
+  assert.equal(missingLoginFields.status, 400);
+});
+
+test('rejects login with an incorrect password', async () => {
+  const response = await request(app).post('/api/auth/login').send({
+    email: 'avery@example.com',
+    password: 'incorrect-password',
+  });
+  assert.equal(response.status, 401);
+  assert.match(response.body.message, /incorrect/i);
+});
+
+test('accepts a valid JWT and rejects missing or invalid tokens', async () => {
+  const authorized = await request(app).get('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`);
+  assert.equal(authorized.status, 200);
+
+  const missing = await request(app).get('/api/readings');
+  assert.equal(missing.status, 401);
+
+  const invalid = await request(app).get('/api/readings')
+    .set('Authorization', 'Bearer invalid-token');
+  assert.equal(invalid.status, 401);
+});
+
+test('allows the configured local frontend origin through CORS', async () => {
+  const response = await request(app).options('/api/auth/register')
+    .set('Origin', 'http://localhost:5173')
+    .set('Access-Control-Request-Method', 'POST');
+  assert.equal(response.headers['access-control-allow-origin'], 'http://localhost:5173');
+  assert.match(response.headers['access-control-allow-methods'], /POST/);
+});
+
 test('rejects invalid glucose values', async () => {
   for (const value of [39, 601, 88.5, '']) {
     const response = await request(app)

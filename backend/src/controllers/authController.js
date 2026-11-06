@@ -19,7 +19,7 @@ function createAuthController(pool) {
 
         if (!name || name.length > 100 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || password.length < 8) {
           return res.status(400).json({
-            message: 'Please provide a name, valid email, and password with at least 8 characters.',
+            message: 'Name and a valid email are required. Password must be at least 8 characters.',
           });
         }
 
@@ -43,6 +43,9 @@ function createAuthController(pool) {
         const body = req.body && typeof req.body === 'object' ? req.body : {};
         const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : '';
         const password = typeof body.password === 'string' ? body.password : '';
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || !password) {
+          return res.status(400).json({ message: 'A valid email and password are required.' });
+        }
         const result = await pool.query(
           'SELECT id, name, email, password_hash FROM users WHERE email = $1',
           [email],
