@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Activity, CalendarDays, Droplets, HeartPulse, LogOut, Pencil, Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Activity, CalendarDays, ChevronLeft, ChevronRight, Download, Droplets, HeartPulse, LogOut, Pencil, Plus, Sparkles, Trash2, TrendingUp } from 'lucide-react';
 import { withToken } from './api';
-import { displayDate, localDateString } from './date';
+import { displayDate, localDateString, shiftCalendarDate } from './date';
+import { readingsToCsv } from './csv';
 import ReadingForm, { TIME_SLOTS } from './ReadingForm';
 import ReportCard from './ReportCard';
+
+const MonthlyTrendChart = lazy(() => import('./MonthlyTrendChart.jsx'));
 
 function slotLabel(value) {
   return TIME_SLOTS.find((slot) => slot.value === value)?.label || value;
@@ -20,6 +23,7 @@ export default function Dashboard({ user, token, onLogout }) {
   const [selectedDate, setSelectedDate] = useState(localDateString());
   const [readings, setReadings] = useState([]);
   const [reports, setReports] = useState({});
+  const [trend, setTrend] = useState({ points: [] });
   const [editing, setEditing] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -30,14 +34,16 @@ export default function Dashboard({ user, token, onLogout }) {
     setLoading(true);
     setPageError('');
     try {
-      const [readingResponse, daily, monthToDate, monthly] = await Promise.all([
+      const [readingResponse, daily, monthToDate, monthly, monthlyTrend] = await Promise.all([
         client.get('/readings'),
         client.get('/reports/daily', { params: { date: selectedDate } }),
         client.get('/reports/month-to-date', { params: { date: selectedDate } }),
         client.get('/reports/monthly', { params: { date: selectedDate } }),
+        client.get('/reports/trend', { params: { date: selectedDate } }),
       ]);
       setReadings(readingResponse.data.readings);
       setReports({ daily: daily.data, monthToDate: monthToDate.data, monthly: monthly.data });
+      setTrend(monthlyTrend.data);
     } catch (error) {
       setPageError(friendlyError(error));
     } finally {
@@ -74,6 +80,19 @@ export default function Dashboard({ user, token, onLogout }) {
     }
   }
 
+  function exportReadings() {
+    if (!readings.length) return;
+    const blob = new Blob([readingsToCsv(readings)], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'sweety-glucose-readings.csv';
+    document.body.append(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   const todayReadings = readings.filter((reading) => reading.date === selectedDate);
   const currentDaily = reports.daily;
 
@@ -96,11 +115,15 @@ export default function Dashboard({ user, token, onLogout }) {
             <h1>Hello, {user.name.split(' ')[0]} <span className="wave">✦</span></h1>
             <p className="welcome-copy">Every check-in is a step toward understanding your health.</p>
           </div>
-          <label className="date-picker">
-            <CalendarDays size={17} />
-            <span>Viewing</span>
-            <input type="date" value={selectedDate} max={localDateString()} onChange={(event) => setSelectedDate(event.target.value)} aria-label="Select report date" />
-          </label>
+          <div className="date-navigation" aria-label="Navigate report date">
+            <button className="icon-button date-nav-button" type="button" aria-label="Previous day" title="Previous day" onClick={() => setSelectedDate((date) => shiftCalendarDate(date, -1))}><ChevronLeft size={17} /></button>
+            <label className="date-picker">
+              <CalendarDays size={17} />
+              <span>Viewing</span>
+              <input type="date" value={selectedDate} max={localDateString()} onChange={(event) => setSelectedDate(event.target.value)} aria-label="Select report date" />
+            </label>
+            <button className="icon-button date-nav-button" type="button" aria-label="Next day" title="Next day" disabled={selectedDate >= localDateString()} onClick={() => setSelectedDate((date) => shiftCalendarDate(date, 1))}><ChevronRight size={17} /></button>
+          </div>
         </section>
 
         {pageError && <div className="alert alert-error page-alert" role="alert">{pageError}<button type="button" onClick={() => setPageError('')}>Dismiss</button></div>}
@@ -136,6 +159,24 @@ export default function Dashboard({ user, token, onLogout }) {
           </div>
         </section>
 
+        <section className="trend-panel panel" aria-label="Monthly glucose trend">
+          <div className="panel-heading">
+            <div><p className="eyebrow">YOUR MONTHLY PATTERN</p><h2>Glucose trend</h2></div>
+            <span className="trend-period">{displayDate(trend.period?.start, { month: 'long', year: 'numeric' })}</span>
+          </div>
+          {loading ? (
+            <div className="chart-empty"><span className="spinner small" /> Loading your monthly trend…</div>
+          ) : !trend.points?.length ? (
+            <div className="chart-empty"><span className="empty-heart"><Activity size={16} /></span><span>No readings this month yet. Your trend will appear after your first check-in.</span></div>
+          ) : (
+            <div className="trend-chart">
+              <Suspense fallback={<div className="chart-empty"><span className="spinner small" /> Loading chart…</div>}>
+                <MonthlyTrendChart points={trend.points} />
+              </Suspense>
+            </div>
+          )}
+        </section>
+
         <section className="workspace-grid">
           <article className="panel add-panel">
             <div className="panel-heading">
@@ -157,12 +198,17 @@ export default function Dashboard({ user, token, onLogout }) {
           <article className="panel history-panel">
             <div className="panel-heading">
               <div><p className="eyebrow">YOUR RECORD</p><h2>Reading history</h2></div>
-              <span className="history-count">{readings.length} {readings.length === 1 ? 'entry' : 'entries'}</span>
+              <div className="history-tools">
+                <span className="history-count">{readings.length} {readings.length === 1 ? 'entry' : 'entries'}</span>
+                <button className="button button-quiet export-button" type="button" onClick={exportReadings} disabled={!readings.length} title={readings.length ? 'Download your readings as CSV' : 'No readings to export'}>
+                  <Download size={14} /> Export CSV
+                </button>
+              </div>
             </div>
             {loading ? (
               <div className="table-state"><span className="spinner small" /> Loading your readings…</div>
             ) : readings.length === 0 ? (
-              <div className="history-empty"><div className="empty-illustration"><Droplets size={22} /></div><strong>Your story starts here</strong><span>Add your first reading and it’ll show up here.</span></div>
+              <div className="history-empty"><div className="empty-illustration"><Droplets size={22} /></div><strong>Your story starts here</strong><span>Add your first reading and it’ll show up here. Your readings are private to your account.</span></div>
             ) : (
               <div className="table-wrap">
                 <table>

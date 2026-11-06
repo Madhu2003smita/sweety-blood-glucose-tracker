@@ -15,6 +15,39 @@ function dateRangeFor(kind, selectedDate) {
 }
 
 function createReportsController(pool) {
+  async function trend(req, res, next) {
+    const selectedDate = req.query.date || todayUtc();
+    if (!isValidDate(selectedDate) || selectedDate > todayUtc()) {
+      return res.status(400).json({ message: 'Choose a valid date that is not in the future.' });
+    }
+
+    const start = `${selectedDate.slice(0, 7)}-01`;
+    const [year, month] = selectedDate.split('-').map(Number);
+    const end = new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10);
+
+    try {
+      const result = await pool.query(
+        `SELECT reading_date AS date,
+                AVG(value)::FLOAT AS average,
+                COUNT(*)::INTEGER AS total
+         FROM readings
+         WHERE user_id = $1 AND reading_date BETWEEN $2 AND $3
+         GROUP BY reading_date
+         ORDER BY reading_date`,
+        [req.user.id, start, end],
+      );
+      return res.json({
+        period: { start, end },
+        points: result.rows.map((row) => ({
+          ...serializeReading({ ...row, date: row.date }),
+          average: Math.round(Number(row.average) * 10) / 10,
+        })),
+      });
+    } catch (error) {
+      return next(error);
+    }
+  }
+
   async function report(req, res, next, kind) {
     const selectedDate = req.query.date || todayUtc();
     if (!isValidDate(selectedDate) || selectedDate > todayUtc()) {
@@ -63,6 +96,7 @@ function createReportsController(pool) {
     daily: (req, res, next) => report(req, res, next, 'daily'),
     monthToDate: (req, res, next) => report(req, res, next, 'month-to-date'),
     monthly: (req, res, next) => report(req, res, next, 'monthly'),
+    trend,
   };
 }
 

@@ -61,6 +61,9 @@ For production frontend builds, run `npm run build` in `frontend`. Configure `VI
 - `GET /api/reports/daily?date=YYYY-MM-DD`
 - `GET /api/reports/month-to-date?date=YYYY-MM-DD`
 - `GET /api/reports/monthly?date=YYYY-MM-DD` — full calendar month preceding the selected date’s month
+- `GET /api/reports/trend?date=YYYY-MM-DD` — per-day average and reading count for the selected calendar month
+
+The dashboard includes a responsive monthly average trend chart backed by this authenticated PostgreSQL report, previous/next-day navigation (future dates are disabled), and a CSV download of the signed-in user’s reading history. Empty chart and history states are shown when the account has no readings.
 
 Reading requests use `{ "date": "YYYY-MM-DD", "timeSlot": "morning_fasting", "value": 105 }`. Allowed time slots are `morning_fasting`, `after_breakfast`, `after_lunch`, and `after_dinner`. Values must be whole numbers from 40 to 600 mg/dL. Dates are interpreted as UTC calendar dates and cannot be in the future. A unique database constraint enforces one reading per user, date, and time slot; the four allowed slots cap readings at four per day.
 
@@ -70,6 +73,13 @@ Backend API tests use an in-memory PostgreSQL-compatible database and do not req
 
 ```powershell
 cd backend
+npm test
+```
+
+Frontend CSV export tests:
+
+```powershell
+cd frontend
 npm test
 ```
 

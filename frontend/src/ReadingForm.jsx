@@ -1,13 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Check, Plus, X } from 'lucide-react';
 import { localDateString } from './date';
+import { TIME_SLOTS } from './timeSlots';
 
-export const TIME_SLOTS = [
-  { value: 'morning_fasting', label: 'Morning (fasting)' },
-  { value: 'after_breakfast', label: 'After breakfast' },
-  { value: 'after_lunch', label: 'After lunch' },
-  { value: 'after_dinner', label: 'After dinner' },
-];
+export { TIME_SLOTS };
 
 export default function ReadingForm({ reading, selectedDate, readings, onSave, onCancel, busy }) {
   const [form, setForm] = useState({

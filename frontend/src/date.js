@@ -5,6 +5,11 @@ export function localDateString(date = new Date()) {
   return `${year}-${month}-${day}`;
 }
 
+export function shiftCalendarDate(value, days) {
+  const [year, month, day] = value.split('-').map(Number);
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10);
+}
+
 function toLocalCalendarDate(value) {
   if (!value) return '';
 

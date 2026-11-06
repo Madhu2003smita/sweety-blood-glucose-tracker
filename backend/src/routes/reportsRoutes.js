@@ -9,5 +9,6 @@ module.exports = (pool) => {
   router.get('/daily', controller.daily);
   router.get('/month-to-date', controller.monthToDate);
   router.get('/monthly', controller.monthly);
+  router.get('/trend', controller.trend);
   return router;
 };

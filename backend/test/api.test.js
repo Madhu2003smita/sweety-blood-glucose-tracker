@@ -305,3 +305,35 @@ test('calculates month-to-date and prior full-month report ranges', () => {
     end: '2024-12-31',
   });
 });
+
+test('returns monthly trend averages from only the authenticated user readings', async () => {
+  const date = '2024-07-10';
+  const first = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ date, timeSlot: 'morning_fasting', value: 100 });
+  const second = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ date, timeSlot: 'after_breakfast', value: 111 });
+  const anotherDay = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ date: '2024-07-12', timeSlot: 'after_lunch', value: 140 });
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 201);
+  assert.equal(anotherDay.status, 201);
+
+  const response = await request(app).get('/api/reports/trend')
+    .query({ date })
+    .set('Authorization', `Bearer ${userToken}`);
+  assert.equal(response.status, 200);
+  assert.deepEqual(response.body.period, { start: '2024-07-01', end: '2024-07-31' });
+  assert.deepEqual(response.body.points, [
+    { date: '2024-07-10', average: 105.5, total: 2 },
+    { date: '2024-07-12', average: 140, total: 1 },
+  ]);
+
+  const isolated = await request(app).get('/api/reports/trend')
+    .query({ date })
+    .set('Authorization', `Bearer ${secondUserToken}`);
+  assert.equal(isolated.status, 200);
+  assert.deepEqual(isolated.body.points, []);
+});
