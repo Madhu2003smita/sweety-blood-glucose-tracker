@@ -126,6 +126,37 @@ test('rejects duplicate time slots per user and day', async () => {
   assert.equal(second.status, 409);
 });
 
+test('returns reading dates as timezone-safe YYYY-MM-DD across CRUD and daily reports', async () => {
+  const date = '2024-02-29';
+  const payload = { date, timeSlot: 'after_breakfast', value: 108 };
+  const created = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`).send(payload);
+  assert.equal(created.status, 201);
+  assert.equal(created.body.reading.date, date);
+
+  const listed = await request(app).get('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`);
+  const listedReading = listed.body.readings.find((reading) => reading.id === created.body.reading.id);
+  assert.equal(listed.status, 200);
+  assert.equal(listedReading.date, date);
+
+  const daily = await request(app).get('/api/reports/daily')
+    .query({ date }).set('Authorization', `Bearer ${userToken}`);
+  assert.equal(daily.status, 200);
+  assert.equal(daily.body.period.start, date);
+  assert.equal(daily.body.readings[0].date, date);
+
+  const updated = await request(app).put(`/api/readings/${created.body.reading.id}`)
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ ...payload, date: '2024-03-01', value: 109 });
+  assert.equal(updated.status, 200);
+  assert.equal(updated.body.reading.date, '2024-03-01');
+
+  const deleted = await request(app).delete(`/api/readings/${created.body.reading.id}`)
+    .set('Authorization', `Bearer ${userToken}`);
+  assert.equal(deleted.status, 204);
+});
+
 test('allows no more than the four supported time slots per day', async () => {
   const slots = ['morning_fasting', 'after_breakfast', 'after_lunch', 'after_dinner'];
   for (const [index, timeSlot] of slots.entries()) {

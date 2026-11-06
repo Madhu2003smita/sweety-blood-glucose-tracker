@@ -1,4 +1,5 @@
 const { isValidDate, todayUtc } = require('../utils/validation');
+const { serializeReading } = require('../utils/dateSerialization');
 
 function dateRangeFor(kind, selectedDate) {
   if (kind === 'daily') return { start: selectedDate, end: selectedDate };
@@ -51,7 +52,7 @@ function createReportsController(pool) {
         period: { start, end },
         ...values,
         average: values.average === null ? null : Math.round(Number(values.average) * 10) / 10,
-        readings: readings.rows,
+        readings: readings.rows.map(serializeReading),
       });
     } catch (error) {
       return next(error);

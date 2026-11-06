@@ -1,4 +1,5 @@
 const { validateReading } = require('../utils/validation');
+const { serializeReading } = require('../utils/dateSerialization');
 
 function createReadingsController(pool) {
   function handleConstraint(error, res) {
@@ -26,7 +27,7 @@ function createReadingsController(pool) {
              END`,
           [req.user.id],
         );
-        return res.json({ readings: result.rows });
+        return res.json({ readings: result.rows.map(serializeReading) });
       } catch (error) {
         return next(error);
       }
@@ -43,7 +44,7 @@ function createReadingsController(pool) {
            RETURNING id, reading_date AS date, time_slot AS "timeSlot", value`,
           [req.user.id, req.body.date, req.body.timeSlot, value],
         );
-        return res.status(201).json({ reading: result.rows[0] });
+        return res.status(201).json({ reading: serializeReading(result.rows[0]) });
       } catch (error) {
         const response = handleConstraint(error, res);
         if (response) return response;
@@ -67,7 +68,7 @@ function createReadingsController(pool) {
           [req.body.date, req.body.timeSlot, value, req.params.id, req.user.id],
         );
         if (!result.rowCount) return res.status(404).json({ message: 'Reading not found.' });
-        return res.json({ reading: result.rows[0] });
+        return res.json({ reading: serializeReading(result.rows[0]) });
       } catch (error) {
         const response = handleConstraint(error, res);
         if (response) return response;
