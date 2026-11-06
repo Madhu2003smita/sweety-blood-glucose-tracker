@@ -7,6 +7,8 @@ const request = require('supertest');
 const { newDb } = require('pg-mem');
 const createApp = require('../src/app');
 const { dateRangeFor } = require('../src/controllers/reportsController');
+const seedDemoUser = require('../src/db/seedDemoUser');
+const bcrypt = require('bcryptjs');
 
 let app;
 let db;
@@ -54,6 +56,51 @@ test('registers users with hashed passwords and logs in', async () => {
   assert.equal(response.body.user.email, 'avery@example.com');
   assert.ok(response.body.token);
   assert.equal(Object.hasOwn(response.body.user, 'password_hash'), false);
+});
+
+test('seeds demo credentials and readings idempotently without changing an existing password', async () => {
+  await seedDemoUser(db.pool);
+  const login = await request(app).post('/api/auth/login').send({
+    email: 'demo@sweety.com',
+    password: 'Demo@12345',
+  });
+  assert.equal(login.status, 200);
+  assert.equal(login.body.user.name, 'Demo User');
+  assert.equal(login.body.user.email, 'demo@sweety.com');
+
+  const readings = await db.pool.query(
+    'SELECT user_id, time_slot, value FROM readings WHERE user_id = $1 ORDER BY time_slot',
+    [login.body.user.id],
+  );
+  assert.equal(readings.rowCount, 4);
+  assert.deepEqual(
+    readings.rows.map(({ time_slot, value }) => [time_slot, value]),
+    [
+      ['after_breakfast', 140],
+      ['after_dinner', 115],
+      ['after_lunch', 120],
+      ['morning_fasting', 105],
+    ],
+  );
+  assert.ok(readings.rows.every((reading) => reading.user_id === login.body.user.id));
+
+  const existingPasswordHash = await bcrypt.hash('existing-demo-password', 12);
+  await db.pool.query(
+    'UPDATE users SET password_hash = $1 WHERE id = $2',
+    [existingPasswordHash, login.body.user.id],
+  );
+  await seedDemoUser(db.pool);
+
+  const unchangedUser = await db.pool.query(
+    'SELECT password_hash FROM users WHERE id = $1',
+    [login.body.user.id],
+  );
+  const unchangedReadings = await db.pool.query(
+    'SELECT id FROM readings WHERE user_id = $1',
+    [login.body.user.id],
+  );
+  assert.equal(unchangedUser.rows[0].password_hash, existingPasswordHash);
+  assert.equal(unchangedReadings.rowCount, 4);
 });
 
 test('rejects duplicate registrations and invalid authentication input', async () => {

@@ -48,6 +48,21 @@ The API creates the `users` and `readings` tables and indexes on startup. It req
 
    Open `http://localhost:5173`.
 
+## Demo account
+
+With the backend `.env` configured for your PostgreSQL database, run this from the `backend` directory to create the demo account and add four sample readings for the current date:
+
+```powershell
+npm run db:seed-demo
+```
+
+The script is safe to run again: it does not change an existing account's details or password and does not add duplicate readings.
+
+Demo login:
+
+- Email: `demo@sweety.com`
+- Password: `Demo@12345`
+
 For production frontend builds, run `npm run build` in `frontend`. Configure `VITE_API_URL` to the deployed API base URL and set `CLIENT_ORIGIN` to the frontend origin on the backend.
 
 ## API
