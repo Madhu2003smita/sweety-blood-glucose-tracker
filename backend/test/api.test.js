@@ -106,13 +106,22 @@ test('allows the configured local frontend origin through CORS', async () => {
 });
 
 test('rejects invalid glucose values', async () => {
-  for (const value of [39, 601, 88.5, '']) {
+  const missing = await request(app)
+    .post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ date: today, timeSlot: 'morning_fasting', value: '' });
+  assert.equal(missing.status, 400);
+  assert.equal(missing.body.message, 'Please enter a glucose value.');
+  assert.equal(missing.body.errors.value, 'Please enter a glucose value.');
+
+  for (const value of [39, 601, 88.5]) {
     const response = await request(app)
       .post('/api/readings')
       .set('Authorization', `Bearer ${userToken}`)
       .send({ date: today, timeSlot: 'morning_fasting', value });
     assert.equal(response.status, 400);
-    assert.ok(response.body.errors.value);
+    assert.equal(response.body.message, 'Value must be between 40 and 600 mg/dl.');
+    assert.equal(response.body.errors.value, 'Value must be between 40 and 600 mg/dl.');
   }
 });
 
@@ -124,6 +133,36 @@ test('rejects duplicate time slots per user and day', async () => {
     .set('Authorization', `Bearer ${userToken}`).send(payload);
   assert.equal(first.status, 201);
   assert.equal(second.status, 409);
+  assert.equal(second.body.message, 'You already have a Morning (fasting) reading for this date.');
+});
+
+test('returns a slot-specific duplicate message for After lunch', async () => {
+  const payload = { date: '2024-06-15', timeSlot: 'after_lunch', value: 130 };
+  const first = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`).send(payload);
+  const second = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`).send(payload);
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 409);
+  assert.equal(second.body.message, 'You already have an After lunch reading for this date.');
+});
+
+test('returns a slot-specific duplicate message when editing', async () => {
+  const date = '2024-06-16';
+  const first = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ date, timeSlot: 'after_lunch', value: 130 });
+  const second = await request(app).post('/api/readings')
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ date, timeSlot: 'after_dinner', value: 140 });
+  const updated = await request(app).put(`/api/readings/${second.body.reading.id}`)
+    .set('Authorization', `Bearer ${userToken}`)
+    .send({ date, timeSlot: 'after_lunch', value: 141 });
+
+  assert.equal(first.status, 201);
+  assert.equal(second.status, 201);
+  assert.equal(updated.status, 409);
+  assert.equal(updated.body.message, 'You already have an After lunch reading for this date.');
 });
 
 test('returns reading dates as timezone-safe YYYY-MM-DD across CRUD and daily reports', async () => {
@@ -178,7 +217,7 @@ test('allows no more than the four supported time slots per day', async () => {
     .set('Authorization', `Bearer ${secondUserToken}`)
     .send({ date: today, timeSlot: 'bedtime', value: 110 });
   assert.equal(fifthWithInvalidSlot.status, 400);
-  assert.equal(fifthWithInvalidSlot.body.message, 'You can add only 4 readings per day.');
+  assert.equal(fifthWithInvalidSlot.body.message, 'Choose a valid time slot.');
 
   const editAtLimit = await request(app).put(`/api/readings/${readingIds[0]}`)
     .set('Authorization', `Bearer ${secondUserToken}`)
@@ -208,7 +247,8 @@ test('rejects future reading dates', async () => {
     .set('Authorization', `Bearer ${userToken}`)
     .send({ date: future, timeSlot: 'after_breakfast', value: 111 });
   assert.equal(response.status, 400);
-  assert.match(response.body.errors.date, /Future dates/);
+  assert.equal(response.body.message, 'Date cannot be in the future.');
+  assert.equal(response.body.errors.date, 'Date cannot be in the future.');
 });
 
 test('isolates readings and mutations by authenticated user', async () => {

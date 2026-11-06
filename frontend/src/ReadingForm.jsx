@@ -33,7 +33,7 @@ export default function ReadingForm({ reading, selectedDate, readings, onSave, o
   async function submit(event) {
     event.preventDefault();
     setError('');
-    const result = await onSave({ ...form, value: Number(form.value) });
+    const result = await onSave(form);
     if (result?.error) setError(result.error);
     else if (!reading) setForm({ date: form.date, timeSlot: 'morning_fasting', value: '' });
   }
@@ -65,14 +65,10 @@ export default function ReadingForm({ reading, selectedDate, readings, onSave, o
           <span className="input-with-unit">
             <input
               type="number"
-              min="40"
-              max="600"
-              step="1"
               inputMode="numeric"
               placeholder="e.g. 105"
               value={form.value}
               onChange={(event) => setForm({ ...form, value: event.target.value })}
-              required
             />
             <span>mg/dL</span>
           </span>

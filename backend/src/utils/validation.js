@@ -21,7 +21,7 @@ function validateReading(input = {}) {
   if (!isValidDate(date)) {
     errors.date = 'Enter a valid date.';
   } else if (date > todayUtc()) {
-    errors.date = 'Future dates are not allowed.';
+    errors.date = 'Date cannot be in the future.';
   }
 
   if (!TIME_SLOTS.includes(timeSlot)) {
@@ -30,9 +30,9 @@ function validateReading(input = {}) {
 
   const numberValue = typeof value === 'string' && value.trim() !== '' ? Number(value) : value;
   if (numberValue === '' || numberValue === undefined || numberValue === null) {
-    errors.value = 'Glucose value is required.';
+    errors.value = 'Please enter a glucose value.';
   } else if (!Number.isInteger(numberValue) || numberValue < 40 || numberValue > 600) {
-    errors.value = 'Glucose value must be a whole number between 40 and 600 mg/dL.';
+    errors.value = 'Value must be between 40 and 600 mg/dl.';
   }
 
   return { errors, value: numberValue };

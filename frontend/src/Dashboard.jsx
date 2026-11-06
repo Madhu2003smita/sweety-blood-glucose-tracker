@@ -10,9 +10,10 @@ function slotLabel(value) {
 }
 
 function friendlyError(error) {
+  if (error.response?.data?.message) return error.response.data.message;
   const fieldErrors = error.response?.data?.errors;
   if (fieldErrors) return Object.values(fieldErrors).join(' ');
-  return error.response?.data?.message || 'We could not complete that request. Please try again.';
+  return 'We could not complete that request. Please try again.';
 }
 
 export default function Dashboard({ user, token, onLogout }) {

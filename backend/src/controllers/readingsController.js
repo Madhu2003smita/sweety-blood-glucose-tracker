@@ -2,11 +2,29 @@ const { validateReading } = require('../utils/validation');
 const { serializeReading } = require('../utils/dateSerialization');
 
 const DAILY_LIMIT_MESSAGE = 'You can add only 4 readings per day.';
+const TIME_SLOT_LABELS = {
+  morning_fasting: 'Morning (fasting)',
+  after_breakfast: 'After breakfast',
+  after_lunch: 'After lunch',
+  after_dinner: 'After dinner',
+};
+
+function validationFailure(errors, res) {
+  const message = errors.date || errors.value || errors.timeSlot;
+  return message ? res.status(400).json({ message, errors }) : null;
+}
+
+function duplicateSlotMessage(timeSlot) {
+  const label = TIME_SLOT_LABELS[timeSlot];
+  if (!label) return 'You already have a reading for this time slot on this date.';
+  const article = /^[aeiou]/i.test(label) ? 'an' : 'a';
+  return `You already have ${article} ${label} reading for this date.`;
+}
 
 function createReadingsController(pool) {
-  function handleConstraint(error, res) {
+  function handleConstraint(error, res, timeSlot) {
     if (error.code === '23505') {
-      return res.status(409).json({ message: 'A reading already exists for this time slot on that date.' });
+      return res.status(409).json({ message: duplicateSlotMessage(timeSlot) });
     }
     if (error.code === '23514') {
       return res.status(400).json({ message: 'The reading value or time slot is invalid.' });
@@ -37,9 +55,8 @@ function createReadingsController(pool) {
 
     async create(req, res, next) {
       const { errors, value } = validateReading(req.body);
-      if (errors.date) {
-        return res.status(400).json({ message: 'Please correct the highlighted fields.', errors: { date: errors.date } });
-      }
+      const validationResponse = validationFailure(errors, res);
+      if (validationResponse) return validationResponse;
 
       let client;
       try {
@@ -54,11 +71,6 @@ function createReadingsController(pool) {
           await client.query('ROLLBACK');
           return res.status(400).json({ message: DAILY_LIMIT_MESSAGE });
         }
-        if (Object.keys(errors).length) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ message: 'Please correct the highlighted fields.', errors });
-        }
-
         const result = await client.query(
           `INSERT INTO readings (user_id, reading_date, time_slot, value)
            VALUES ($1, $2, $3, $4)
@@ -75,7 +87,7 @@ function createReadingsController(pool) {
             error.rollbackError = rollbackError;
           }
         }
-        const response = handleConstraint(error, res);
+        const response = handleConstraint(error, res, req.body?.timeSlot);
         if (response) return response;
         return next(error);
       } finally {
@@ -88,9 +100,8 @@ function createReadingsController(pool) {
         return res.status(400).json({ message: 'Reading ID must be a positive integer.' });
       }
       const { errors, value } = validateReading(req.body);
-      if (errors.date) {
-        return res.status(400).json({ message: 'Please correct the highlighted fields.', errors: { date: errors.date } });
-      }
+      const validationResponse = validationFailure(errors, res);
+      if (validationResponse) return validationResponse;
 
       let client;
       try {
@@ -115,11 +126,6 @@ function createReadingsController(pool) {
           await client.query('ROLLBACK');
           return res.status(400).json({ message: DAILY_LIMIT_MESSAGE });
         }
-        if (Object.keys(errors).length) {
-          await client.query('ROLLBACK');
-          return res.status(400).json({ message: 'Please correct the highlighted fields.', errors });
-        }
-
         const result = await client.query(
           `UPDATE readings
            SET reading_date = $1, time_slot = $2, value = $3
@@ -137,7 +143,7 @@ function createReadingsController(pool) {
             error.rollbackError = rollbackError;
           }
         }
-        const response = handleConstraint(error, res);
+        const response = handleConstraint(error, res, req.body?.timeSlot);
         if (response) return response;
         return next(error);
       } finally {
